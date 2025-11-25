@@ -3,7 +3,7 @@ import numpy as np
 
 rng = np.random.default_rng()
 
-class StockPath:
+class Stock:
     def __init__(self, count=10**6, spot=100, rate=0.05, divid=0.03, vol=0.10):
         self.count = count
         self.spot = spot
@@ -14,15 +14,15 @@ class StockPath:
     def geom_brownian(self, time=1, steps=1, rand=[]):
         if not len(rand):
             rand = rng.standard_normal((steps, self.count))
-        S_t = np.ones((steps+1,self.count))*self.spot
+        S_t = np.ones((steps+1, self.count)) * self.spot
         if not steps-1:
-            S_t[-1] = [self.spot*math.exp((self.rate - self.divid)*time - \
-                0.5*(self.vol**2)*time + self.vol*math.sqrt(time)*x) \
+            S_t[-1] = [self.spot * math.exp((self.rate - self.divid) * time - \
+                0.5 * (self.vol**2) * time + self.vol * math.sqrt(time) * x) \
                 for x in rand[-1]]
         else:
             for i in range(steps):
-                S_t[i+1] = S_t[i]*(1 + (self.rate - self.divid)*time/steps + \
-                    self.vol*math.sqrt(time/steps)*rand[i])
+                S_t[i+1] = S_t[i] * (1 + (self.rate - self.divid) * time / \
+                steps + self.vol * math.sqrt(time / steps) * rand[i])
         return S_t
 
 class EuropeanOption:
@@ -62,7 +62,7 @@ class EuropeanOption:
 
     @_random_seed
     def vega(self, steps, rand):
-        epsilon = 0.001
+        epsilon = 0.0001
         self.stock.vol += epsilon
         price_eps = self.price(steps, rand)
         self.stock.vol -= epsilon
@@ -70,7 +70,7 @@ class EuropeanOption:
 
     @_random_seed
     def rho(self, steps, rand):
-        epsilon = 0.001
+        epsilon = 0.0001
         self.stock.rate += epsilon
         price_eps = self.price(steps, rand)
         self.stock.rate -= epsilon
@@ -79,7 +79,7 @@ class EuropeanOption:
     @_random_seed
     def theta(self, steps, rand):
         epsilon = 0.01
-        self.expiry -= epsilon
-        price_eps = self.price(steps, rand)
         self.expiry += epsilon
-        return (price_eps - self.price(steps, rand))/epsilon
+        price_eps = self.price(steps, rand)
+        self.expiry -= epsilon
+        return -(price_eps - self.price(steps, rand))/epsilon
