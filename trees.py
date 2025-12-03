@@ -2,7 +2,7 @@ import math
 import numpy as np
 
 class Stock:
-    def __init__(self, spot=100, rate=0.05, divid=0.03, vol=0.10):
+    def __init__(self, spot=100, rate=0.05, divid=0.03, vol=0.20):
         self.spot = spot
         self.rate = rate
         self.divid = divid
@@ -19,21 +19,10 @@ class Stock:
                 tree[i][j] *= self.up**(i-j) * self.down**j
         return tree
 
-class EuropeanOption:
-    def __init__(self, stock, expiry, payoff):
+class Option:
+    def __init__(self, stock, payoff):
         self.stock = stock
-        self.expiry = expiry
         self.payoff = lambda S: [payoff(x) for x in S]
-
-    def _trees(self, steps):
-        S = self.stock.geom_brownian(self.expiry, steps)
-        V = [self.payoff(x) for x in S]
-        for i in reversed(range(steps)):
-            for j in range(i+1):
-                V[i][j] = math.exp(-self.stock.rate * self.expiry / steps) * \
-                    (self.stock.pr * V[i+1][j] + (1 - self.stock.pr) * \
-                    V[i+1][j+1])
-        return S, V
 
     price = lambda self, steps=1000: self._trees(steps)[1][0][0]
 
@@ -44,7 +33,7 @@ class EuropeanOption:
     def gamma(self, steps=1000):
         S, V = self._trees(steps)
         return 2 * (((V[2][0] - V[2][1]) / (S[2][0] - S[2][1])) - \
-            ((V[2][1] - V[2][2]) / (S[2][1] - S[2][2]))) / (S[2][0] - S[2][2])
+        ((V[2][1] - V[2][2]) / (S[2][1] - S[2][2]))) / (S[2][0] - S[2][2])
 
     def vega(self, steps=1000):
         epsilon = 0.0001
@@ -64,13 +53,27 @@ class EuropeanOption:
         S, V = self._trees(steps)
         return (V[2][1] - V[0][0]) / (2 * self.expiry / steps)
 
-class AmericanOption:
+class EuropeanOption(Option):
     def __init__(self, stock, expiry, payoff):
-        self.stock = stock
+        super().__init__(stock, payoff)
         self.expiry = expiry
-        self.payoff = lambda S: [payoff(x) for x in S]
 
-    def price(self, steps=1000):
+    def _trees(self, steps):
+        S = self.stock.geom_brownian(self.expiry, steps)
+        V = [self.payoff(x) for x in S]
+        for i in reversed(range(steps)):
+            for j in range(i+1):
+                V[i][j] = math.exp(-self.stock.rate * self.expiry / steps) * \
+                    (self.stock.pr * V[i+1][j] + (1 - self.stock.pr) * \
+                    V[i+1][j+1])
+        return S, V
+
+class AmericanOption(Option):
+    def __init__(self, stock, expiry, payoff):
+        super().__init__(stock, payoff)
+        self.expiry = expiry
+
+    def _trees(self, steps=1000):
         S = self.stock.geom_brownian(self.expiry, steps)
         V = [self.payoff(x) for x in S]
         for i in reversed(range(steps)):
@@ -78,15 +81,14 @@ class AmericanOption:
                 V[i][j] = max(V[i][j], math.exp(-self.stock.rate * \
                     self.expiry / steps) * (self.stock.pr * V[i+1][j] + \
                     (1 - self.stock.pr) * V[i+1][j+1]))
-        return V[0][0]
+        return S, V
 
-class BermudanOption:
+class BermudanOption(Option):
     def __init__(self, stock, times, payoff):
-        self.stock = stock
+        super().__init__(stock, payoff)
         self.times = times
-        self.payoff = lambda S: [payoff(x) for x in S]
 
-    def price(self, steps_=100):
+    def _trees(self, steps_=100):
         total_steps = steps_ * len(self.times)
         dt = self.times[-1] / total_steps
         S = self.stock.geom_brownian(self.times[-1], total_steps)
@@ -102,4 +104,4 @@ class BermudanOption:
                     V[i][j] = math.exp(-self.stock.rate * dt) * \
                         (self.stock.pr * V[i+1][j] + (1 - self.stock.pr) * \
                         V[i+1][j+1])
-        return V[0][0]
+        return S, V
