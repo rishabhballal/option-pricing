@@ -149,3 +149,24 @@ class AsianOption:
         for i in range(len(self.times)):
             self.times[i] += epsilon * (i+1)
         return (price_eps - self.price(steps_, rand)) / epsilon
+
+class LookbackOption:
+    def __init__(self, stock, expiry, payoff):
+        self.stock = stock
+        self.expiry = expiry
+        self.payoff = lambda S, S_min, S_max: [payoff(S[i], S_min[i], S_max[i]) for i in range(self.stock.count)]
+
+    def _random_seed(func):
+        def wrapper(self, steps=10**3, rand=[]):
+            if not len(rand):
+                rand = rng.standard_normal((steps, self.stock.count))
+            return func(self, steps, rand)
+        return wrapper
+
+    @_random_seed
+    def price(self, steps, rand):
+        S = self.stock.geom_brownian(self.expiry, steps, rand)
+        S_min = [min(S[:,i]) for i in range(self.stock.count)]
+        S_max = [max(S[:,i]) for i in range(self.stock.count)]
+        return math.exp(-self.stock.rate * self.expiry) * \
+            np.mean(self.payoff(S[-1], S_min, S_max))
