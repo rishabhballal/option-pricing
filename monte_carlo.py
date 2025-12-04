@@ -84,6 +84,27 @@ class EuropeanOption:
         self.expiry += epsilon
         return (price_eps - self.price(steps, rand)) / epsilon
 
+class LookbackOption:
+    def __init__(self, stock, expiry, payoff):
+        self.stock = stock
+        self.expiry = expiry
+        self.payoff = lambda S, S_min, S_max: [payoff(S[i], S_min[i], S_max[i]) for i in range(self.stock.count)]
+
+    def _random_seed(func):
+        def wrapper(self, steps=10**3, rand=[]):
+            if not len(rand):
+                rand = rng.standard_normal((steps, self.stock.count))
+            return func(self, steps, rand)
+        return wrapper
+
+    @_random_seed
+    def price(self, steps, rand):
+        S = self.stock.geom_brownian(self.expiry, steps, rand)
+        S_min = [min(S[:,i]) for i in range(self.stock.count)]
+        S_max = [max(S[:,i]) for i in range(self.stock.count)]
+        return math.exp(-self.stock.rate * self.expiry) * \
+            np.mean(self.payoff(S[-1], S_min, S_max))
+
 class AsianOption:
     def __init__(self, stock, times, payoff):
         self.stock = stock
@@ -150,23 +171,26 @@ class AsianOption:
             self.times[i] += epsilon * (i+1)
         return (price_eps - self.price(steps_, rand)) / epsilon
 
-class LookbackOption:
-    def __init__(self, stock, expiry, payoff):
+class DiscreteBarrierOption:
+    def __init__(self, stock, times, payoff):
         self.stock = stock
-        self.expiry = expiry
-        self.payoff = lambda S, S_min, S_max: [payoff(S[i], S_min[i], S_max[i]) for i in range(self.stock.count)]
+        self.times = times
+        self.payoff = lambda S: [payoff(S[:,i]) for i in range(stock.count)]
 
     def _random_seed(func):
-        def wrapper(self, steps=10**3, rand=[]):
+        def wrapper(self, steps_=10**2, rand=[]):
             if not len(rand):
-                rand = rng.standard_normal((steps, self.stock.count))
-            return func(self, steps, rand)
+                rand = rng.standard_normal((steps_ * len(self.times), \
+                    self.stock.count))
+            return func(self, steps_, rand)
         return wrapper
 
     @_random_seed
-    def price(self, steps, rand):
-        S = self.stock.geom_brownian(self.expiry, steps, rand)
-        S_min = [min(S[:,i]) for i in range(self.stock.count)]
-        S_max = [max(S[:,i]) for i in range(self.stock.count)]
-        return math.exp(-self.stock.rate * self.expiry) * \
-            np.mean(self.payoff(S[-1], S_min, S_max))
+    def price(self, steps_, rand):
+        total_steps = steps_ * len(self.times)
+        S = self.stock.geom_brownian(self.times[-1], total_steps, rand)
+        for i in reversed(range(total_steps+1)):
+            if i * self.times[-1] / total_steps not in self.times:
+                S = np.delete(S, i, axis=0)
+        return math.exp(-self.stock.rate * self.times[-1]) * \
+            np.mean(self.payoff(S))
