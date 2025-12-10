@@ -3,12 +3,12 @@ import numpy as np
 
 dt = 1/252
 
-# for monte carlo
+# for Monte Carlo simulations
 rng = np.random.default_rng()
 nr_paths = 10**4
 
-# for binomial tree
-nr_steps = 1000
+# for binomial trees
+nr_steps = 252*4
 
 class Stock:
     def __init__(self, spot, rate, divid, vol):
@@ -17,6 +17,7 @@ class Stock:
         self.divid = divid
         self.vol = vol
 
+    # for a Monte Carlo simulation
     def gbm_paths(self, time=252, rand=[]):
         if not len(rand):
             rand = rng.standard_normal((time, nr_paths))
@@ -26,6 +27,7 @@ class Stock:
                 self.vol**2 * dt / 2 + self.vol * math.sqrt(dt) * rand[i])
         return paths
 
+    # for a binomial tree
     def gbm_tree(self, time=252):
         self.up = math.exp(self.vol * math.sqrt(time * dt / nr_steps))
         self.down = 1/self.up
