@@ -1,68 +1,6 @@
 import math
 import numpy as np
-
-rng = np.random.default_rng()
-count = 10**5
-_dt = 1/252
-
-class Stock:
-    def __init__(self, spot=100, rate=0.05, divid=0.03, vol=0.10):
-        self.spot = spot
-        self.rate = rate
-        self.divid = divid
-        self.vol = vol
-
-    def gbm_paths(self, time=252, rand=[]):
-        if not len(rand):
-            rand = rng.standard_normal((time, count))
-        paths = np.ones((1+time, count)) * self.spot
-        for i in range(time):
-            paths[i+1] = paths[i] * np.exp((self.rate - self.divid) * _dt - \
-                self.vol**2 * _dt / 2 + self.vol * math.sqrt(_dt) * rand[i])
-        return paths
-
-class _OptionGreeks:
-    def __init__(self, option):
-        self.option = option
-
-    def delta(self, rand):
-        epsilon = 0.01
-        self.option.stock.spot += epsilon
-        price_eps = self.option.price(rand)
-        self.option.stock.spot -= epsilon
-        return (price_eps - self.option.price(rand)) / epsilon
-
-    def gamma(self, rand):
-        epsilon = 0.01
-        self.option.stock.spot += epsilon
-        delta_eps = self.option.delta(rand)
-        self.option.stock.spot -= epsilon
-        return (delta_eps - self.option.delta(rand)) / epsilon
-
-    def vega(self, rand):
-        epsilon = 0.0001
-        self.option.stock.vol += epsilon
-        price_eps = self.option.price(rand)
-        self.option.stock.vol -= epsilon
-        return (price_eps - self.option.price(rand)) / epsilon
-
-    def rho(self, rand):
-        epsilon = 0.0001
-        self.option.stock.rate += epsilon
-        price_eps = self.option.price(rand)
-        self.option.stock.rate -= epsilon
-        return (price_eps - self.option.price(rand)) / epsilon
-
-    def theta(self, rand):
-        try:
-            self.option.expiry -= 1
-            price_eps = self.option.price(rand)
-            self.option.expiry += 1
-        except AttributeError:
-            self.option.times = [x-1 for x in self.option.times]
-            price_eps = self.option.price(rand)
-            self.option.times = [x+1 for x in self.option.times]
-        return (price_eps - self.option.price(rand)) / _dt
+import stocks
 
 class PathIndependentEuropeanOption:
     def __init__(self, stock, expiry, payoff):
@@ -74,14 +12,15 @@ class PathIndependentEuropeanOption:
     def _random_seed(func):
         def wrapper(self, rand=[]):
             if not len(rand):
-                rand = rng.standard_normal((self.expiry, count))
+                rand = stocks.rng.standard_normal(
+                    (self.expiry + 1, stocks.nr_paths))
             return func(self, rand)
         return wrapper
 
     @_random_seed
     def price(self, rand):
         paths = self.stock.gbm_paths(self.expiry, rand)
-        return math.exp(-self.stock.rate * self.expiry * _dt) * \
+        return math.exp(-self.stock.rate * self.expiry * stocks.dt) * \
             np.mean(self.payoff(paths[-1]))
 
     @_random_seed
@@ -114,7 +53,8 @@ class PathDependentEuropeanOption:
     def _random_seed(func):
         def wrapper(self, rand=[]):
             if not len(rand):
-                rand = rng.standard_normal((self.times[-1], count))
+                rand = stocks.rng.standard_normal(
+                    (self.times[-1] + 1, stocks.nr_paths))
             return func(self, rand)
         return wrapper
 
@@ -124,7 +64,7 @@ class PathDependentEuropeanOption:
         for i in reversed(range(self.times[-1] + 1)):
             if i not in self.times:
                 paths = np.delete(paths, i, axis=0)
-        return math.exp(-self.stock.rate * self.times[-1] * _dt) * \
+        return math.exp(-self.stock.rate * self.times[-1] * stocks.dt) * \
             np.mean(self.payoff(paths))
 
     @_random_seed
@@ -146,3 +86,58 @@ class PathDependentEuropeanOption:
     @_random_seed
     def theta(self, rand):
         return self.greeks.theta(rand)
+
+class _OptionGreeks:
+    def __init__(self, option):
+        self.option = option
+
+    def delta(self, rand):
+        epsilon = 0.01
+        self.option.stock.spot += epsilon
+        price_1 = self.option.price(rand)
+        self.option.stock.spot -= 2 * epsilon
+        price_2 = self.option.price(rand)
+        self.option.stock.spot += epsilon
+        return (price_1 - price_2) / (2 * epsilon)
+
+    def gamma(self, rand):
+        epsilon = 0.01
+        self.option.stock.spot += epsilon
+        delta_1 = self.option.delta(rand)
+        self.option.stock.spot -= 2 * epsilon
+        delta_2 = self.option.delta(rand)
+        self.option.stock.spot += epsilon
+        return (delta_1 - delta_2) / (2 * epsilon)
+
+    def vega(self, rand):
+        epsilon = 0.0001
+        self.option.stock.vol += epsilon
+        price_1 = self.option.price(rand)
+        self.option.stock.vol -= 2 * epsilon
+        price_2 = self.option.price(rand)
+        self.option.stock.vol += epsilon
+        return (price_1 - price_2) / (2 * epsilon)
+
+    def rho(self, rand):
+        epsilon = 0.0001
+        self.option.stock.rate += epsilon
+        price_1 = self.option.price(rand)
+        self.option.stock.rate -= 2 * epsilon
+        price_2 = self.option.price(rand)
+        self.option.stock.rate += epsilon
+        return (price_1 - price_2) / (2 * epsilon)
+
+    def theta(self, rand):
+        try:
+            self.option.expiry -= 1
+            price_1 = self.option.price(rand)
+            self.option.expiry += 2
+            price_2 = self.option.price(rand)
+            self.option.expiry -= 1
+        except AttributeError:
+            self.option.times = [x-1 for x in self.option.times]
+            price_1 = self.option.price(rand)
+            self.option.times = [x+2 for x in self.option.times]
+            price_2 = self.option.price(rand)
+            self.option.times = [x-1 for x in self.option.times]
+        return (price_1 - price_2) / (2*dt)
