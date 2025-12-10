@@ -140,4 +140,4 @@ class _OptionGreeks:
             self.option.times = [x+2 for x in self.option.times]
             price_2 = self.option.price(rand)
             self.option.times = [x-1 for x in self.option.times]
-        return (price_1 - price_2) / (2*dt)
+        return (price_1 - price_2) / (2 * stocks.dt)
