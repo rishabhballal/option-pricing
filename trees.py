@@ -74,21 +74,20 @@ class BermudanOption(_Option):
         super().__init__(stock, payoff)
         self.times = times
 
-    def _trees(self, steps_=100):
-        total_steps = steps_ * len(self.times)
-        dt = self.times[-1] / total_steps
-        S = self.stock.gbm_tree(self.times[-1], total_steps)
+    def _trees(self):
+        S = self.stock.gbm_tree(self.times[-1])
         V = [self.payoff(x) for x in S]
-        for i in reversed(range(total_steps)):
-            if i*dt in self.times:
+        for i in reversed(range(stocks.nr_steps)):
+            if int(i * self.times[-1] / stocks.nr_steps) in self.times:
                 for j in range(i+1):
                     V[i][j] = max(
                         V[i][j],
-                        math.exp(-self.stock.rate * dt) * (self.stock.pr * \
-                        V[i+1][j] + (1 - self.stock.pr) * V[i+1][j+1]))
+                        math.exp(-self.stock.rate * self.times[-1] * \
+                            stocks.dt / stocks.nr_steps) * (self.stock.pr * \
+                            V[i+1][j] + (1 - self.stock.pr) * V[i+1][j+1]))
             else:
                 for j in range(i+1):
-                    V[i][j] = math.exp(-self.stock.rate * dt) * \
-                        (self.stock.pr * V[i+1][j] + (1 - self.stock.pr) * \
-                        V[i+1][j+1])
+                    V[i][j] = math.exp(-self.stock.rate * self.times[-1] * \
+                        stocks.dt / stocks.nr_steps) * (self.stock.pr * \
+                        V[i+1][j] + (1 - self.stock.pr) * V[i+1][j+1])
         return S, V
