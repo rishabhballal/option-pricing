@@ -2,10 +2,31 @@ import math
 import numpy as np
 import stocks
 
-class _Option:
-    def __init__(self, stock, payoff):
+# for options with path-independent payoffs and a possibility of early exercise
+class PathIndependentOption:
+    def __init__(self, stock, expiry, payoff, ex_times=[]):
         self.stock = stock
+        self.expiry = expiry
         self.payoff = lambda S: [payoff(x) for x in S]
+        self.ex_times = ex_times
+
+    def _trees(self):
+        S = self.stock.gbm_tree(self.expiry)
+        V = [self.payoff(x) for x in S]
+        for i in reversed(range(stocks.nr_steps)):
+            if int(i * self.expiry / stocks.nr_steps) in self.ex_times:
+                for j in range(i+1):
+                    V[i][j] = max(
+                        V[i][j],
+                        math.exp(-self.stock.rate * self.expiry * stocks.dt / \
+                            stocks.nr_steps) * (self.stock.pr * V[i+1][j] + \
+                            (1 - self.stock.pr) * V[i+1][j+1]))
+            else:
+                for j in range(i+1):
+                    V[i][j] = math.exp(-self.stock.rate * self.expiry * \
+                        stocks.dt / stocks.nr_steps) * (self.stock.pr * \
+                        V[i+1][j] + (1 - self.stock.pr) * V[i+1][j+1])
+        return S, V
 
     def price(self):
         return self._trees()[1][0][0]
@@ -35,59 +56,5 @@ class _Option:
 
     def theta(self):
         S, V = self._trees()
-        return (V[2][1] - V[0][0]) / (2 * self.expiry / stocks.steps)
-
-class EuropeanOption(_Option):
-    def __init__(self, stock, expiry, payoff):
-        super().__init__(stock, payoff)
-        self.expiry = expiry
-
-    def _trees(self):
-        S = self.stock.gbm_tree(self.expiry)
-        V = [self.payoff(x) for x in S]
-        for i in reversed(range(stocks.nr_steps)):
-            for j in range(i+1):
-                V[i][j] = math.exp(-self.stock.rate * self.expiry * \
-                    stocks.dt / stocks.nr_steps) * (self.stock.pr * \
-                    V[i+1][j] + (1 - self.stock.pr) * V[i+1][j+1])
-        return S, V
-
-class AmericanOption(_Option):
-    def __init__(self, stock, expiry, payoff):
-        super().__init__(stock, payoff)
-        self.expiry = expiry
-
-    def _trees(self):
-        S = self.stock.gbm_tree(self.expiry)
-        V = [self.payoff(x) for x in S]
-        for i in reversed(range(stocks.nr_steps)):
-            for j in range(i+1):
-                V[i][j] = max(
-                    V[i][j],
-                    math.exp(-self.stock.rate * self.expiry * stocks.dt / \
-                    stocks.nr_steps) * (self.stock.pr * V[i+1][j] + \
-                    (1 - self.stock.pr) * V[i+1][j+1]))
-        return S, V
-
-class BermudanOption(_Option):
-    def __init__(self, stock, times, payoff):
-        super().__init__(stock, payoff)
-        self.times = times
-
-    def _trees(self):
-        S = self.stock.gbm_tree(self.times[-1])
-        V = [self.payoff(x) for x in S]
-        for i in reversed(range(stocks.nr_steps)):
-            if int(i * self.times[-1] / stocks.nr_steps) in self.times:
-                for j in range(i+1):
-                    V[i][j] = max(
-                        V[i][j],
-                        math.exp(-self.stock.rate * self.times[-1] * \
-                            stocks.dt / stocks.nr_steps) * (self.stock.pr * \
-                            V[i+1][j] + (1 - self.stock.pr) * V[i+1][j+1]))
-            else:
-                for j in range(i+1):
-                    V[i][j] = math.exp(-self.stock.rate * self.times[-1] * \
-                        stocks.dt / stocks.nr_steps) * (self.stock.pr * \
-                        V[i+1][j] + (1 - self.stock.pr) * V[i+1][j+1])
-        return S, V
+        return (V[2][1] - V[0][0]) / (2 * self.expiry * stocks.dt / \
+            stocks.nr_steps)
