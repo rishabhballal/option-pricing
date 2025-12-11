@@ -17,7 +17,7 @@ This object will serve as the underlying in this guide. Depending upon the featu
 
 ## 1. Black-Scholes-Merton formulae
 
-For vanilla options without an early exercise feature, _i.e._ European vanilla options. Import the `black_scholes_merton.py` module and instantiate its `VanillaCall` or `VanillaPut` class by passing three arguments: the underlying, the time to expiry in days, and a strike price.
+Suitable for vanilla options without an early exercise feature, _i.e._ European vanilla options. Import the `black_scholes_merton.py` module and instantiate its `VanillaCall` or `VanillaPut` class by passing three arguments: the underlying, the time to expiry in days, and a strike price.
 
 ```python
 import black_scholes_merton as bsm
@@ -31,7 +31,7 @@ option1 = bsm.VanillaPut(
 
 ## 2. Binomial trees
 
-For options with a path-independent payoff and possibly an early exercise feature. Import the `trees.py` module and instantiate its `PathIndependentOption` class by passing four arguments: the underlying, the time to expiry in days, a payoff function, and the times at which exercise is allowed.
+Suitable for options with a path-independent payoff and possibly an early exercise feature. Import the `trees.py` module and instantiate its `PathIndependentOption` class by passing four arguments: the underlying, the time to expiry in days, a payoff function, and the times at which exercise is allowed.
 
 ```python
 import trees
@@ -50,10 +50,10 @@ The number of steps in the binomial tree can be adjusted with `stocks.nr_steps`.
 
 ## 3. Monte-Carlo simulations
 
-For options with a path-independent or path-dependent payoff but no early exercise feature. Import the `monte_carlo.py` module and instantiate its `EuropeanOption` class by passing four arguments: the underlying, the time to expiry in days, a payoff function, and the times relevant to the payoff.
+Suitable for options with a path-independent or path-dependent payoff but no early exercise feature. Import the `monte_carlo.py` module and instantiate its `EuropeanOption` class by passing four arguments: the underlying, the time to expiry in days, a payoff function, and the times relevant to the payoff.
 
 ```python
-import monte_carlo
+import monte_carlo as mc
 
 option3 = mc.EuropeanOption(
     stock=stock,
@@ -63,6 +63,19 @@ option3 = mc.EuropeanOption(
 )
 ```
 
-Here, `option3` is an Asian put option struck at 95. Note that the payoff argument `path` will be a NumPy array of stock prices at the times given in `path_times`. Once again, the last argument is optional; `path_times=[]` by default, which corresponds to the path-independent case. However, when it comes to options having path-independent payoffs, the binomial trees approach is much more efficient.
+From the payoff, `option3` is recognised as an arithmetic Asian put option struck at 95. Note that the argument `path` of the payoff function will be a NumPy array of stock prices at the times given in `path_times`. Once again, the last argument is optional; `path_times=[]` by default, which corresponds to the path-independent case. However, when it comes to options with path-independent payoffs, the binomial trees approach is much more efficient.
 
 The number of paths in the Monte Carlo simulations can be adjusted with `stocks.nr_paths`.
+
+## Payoff functions
+
+Some standard payoff functions are already defined in `payoffs.py`, and fall into two categories.
+
+* Path-independent: forward contract, vanilla call and put, digital call and put, power call and put, and straddles.
+* Path-dependent: fixed and floating lookback calls and puts, arithmetic and geometric Asian calls and puts, and discrete barrier calls and puts.
+
+On importing the `payoffs.py` module, its functions offer semantic ease when instantiating options. For example, the payoff arguments of `option2` and `option3` can be rewritten as `payoffs.vanilla_put(strike=95)` and `payoffs.arithmetic_asian_put(strike=95)` respectively.
+
+## Price and Greeks
+
+To output the price or a Greek (Delta, Gamma, Vega, Rho, Theta) of any instantiated option, simply call its identically-named method; _e.g._ `option1.price()`, `option2.delta()`, `option3.vega()`.
