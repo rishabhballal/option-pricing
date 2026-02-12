@@ -1,45 +1,32 @@
-import numpy as np
-import stocks
-import black_scholes_merton as bsm
-import monte_carlo as mc
-import trees as tr
-import payoffs
+import option_pricing_engine as ope
 
-# an example of a stock
-stock = stocks.Stock(
+# example of a stock
+stock = ope.stock.GeometricBrownianMotion(
     spot=100,
     rate=0.05,
     divid=0.00,
     vol=0.25
 )
 
-# an example of a vanilla option
-option1 = bsm.VanillaPut(
+# example of a European vanilla put option
+option1 = ope.option.VanillaPut(
     stock=stock,
     expiry=252,
     strike=95
 )
-# a similar example but with an early exercise feature
-option2 = tr.PathIndependentOption(
+# example of an American vanilla put option
+option2 = ope.option.PathIndependentOption(
     stock=stock,
     expiry=252,
-    payoff=payoffs.vanilla_put(strike=95),
+    payoff=lambda spot: max(95 - spot, 0),
     ex_times=range(252)
 )
-# again, a similar example but with arithmetic averaging over fixed times
-option3 = mc.EuropeanOption(
+# example of an arithmetic Asian put option
+option3 = ope.option.EuropeanOption(
     stock=stock,
     expiry=252,
-    payoff=payoffs.arithmetic_asian_put(strike=95),
+    payoff=lambda path: max(95 - sum(path)/len(path), 0),
     path_times=[63, 126, 189, 252]
 )
 
 print(f'Prices: {option1.price()}, {option2.price()}, {option3.price()}')
-
-
-# ---- TO-DO ----
-# pandas
-# implied vol and volatility surface
-# portfolio, replication
-# multi-asset options - quantos and margrabes
-# interest rate derivatives
